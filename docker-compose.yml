@@ -1,0 +1,54 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: asyncflow-postgres
+    restart: unless-stopped
+    environment:
+      # Same variables the app reads from .env (docker compose loads .env from
+      # this directory for ${...} substitution), so the two can't drift apart.
+      # Postgres only applies these when it initializes an EMPTY volume.
+      POSTGRES_USER: ${POSTGRES_USER:-asyncflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-asyncflow}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - asyncflow-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: asyncflow-rabbitmq
+    restart: unless-stopped
+    environment:
+      # Applied only when the RabbitMQ volume is first initialized.
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_HTTP_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - asyncflow-network
+
+networks:
+  asyncflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
